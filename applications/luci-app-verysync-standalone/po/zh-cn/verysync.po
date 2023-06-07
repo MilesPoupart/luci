@@ -1,0 +1,104 @@
+msgid "Verysync"
+msgstr "微力同步"
+
+msgid "Open Verysync page"
+msgstr "打开微力同步页面"
+
+msgid "This is the standalone executable version (luci-app-verysync-standalone), if the non-standalone executable version (luci-app-verysync) is installed at the same time, it may cause problems! If you have verysync already installed or pre-installed, please uninstall this plug-in (luci-app-verysync-standalone) and install the non-standalone downloadable executable version (luci-app-verysync)"
+msgstr "此为独立下载可执行文件版本(luci-app-verysync-standalone)，如果与非独立下载可执行文件版本(luci-app-verysync)同时安装，可能会出现问题！若已通过opkg安装或预装verysync，请安装非独立下载可执行文件版本(luci-app-verysync)并卸载本插件！"
+
+msgid "Simple and easy-to-use multi-platform file synchronization software, astonishing transmission speed is different from the greatest advantage of other products. Micro-force synchronization of intelligent P2P technology to accelerate synchronization, will split the file into several KB-only data synchronization, and the file will be AES encryption processing."
+msgstr "简单易用的多平台文件同步软件, 惊人的传输速度是不同于其他产品的最大优势. 微力同步的智能 P2P 加速同步技术会将文件分割成若干份仅 KB 的数据进行传输, 同时会使用 AES 加密处理."
+
+msgid "Settings"
+msgstr "设置"
+
+msgid "Enable"
+msgstr "启用"
+
+msgid "Verysync Version"
+msgstr "Verysync版本"
+
+msgid "Unknown"
+msgstr "未知"
+
+msgid "The program will be automatically downloaded when the settings are applied, please refresh the page later to check the results."
+msgstr "在设置提交的时候会自动下载程序，请稍后刷新该页面检查结果。"
+
+msgid "Official Site"
+msgstr "官方网站"
+
+msgid "Official Forum"
+msgstr "微力论坛"
+
+msgid "Delay Start (s)"
+msgstr "延迟启动（秒）"
+
+msgid "Mount Point"
+msgstr "挂载点"
+
+msgid "Port"
+msgstr "端口"
+
+msgid "The mount point where the Verysync software directory is located."
+msgstr "微力同步软件目录所在的挂载点。"
+
+msgid "Customize the port number of the Verysync management interface."
+msgstr "自定义微力管理界面端口号。"
+
+msgid "Download Mode"
+msgstr "下载模式选择"
+
+msgid "Choose the way to download the executable files."
+msgstr "选择下载执行文件的方式。"
+
+msgid "You can also use the customized download URL or download manually then upload it to /tmp/upload/ via \"System - FileTransfer\""
+msgstr "也可以使用自定义下载地址或手动下载文件，再在“系统-文件传输”上传至/tmp/upload/。"
+
+msgid "The software will detect and run automatically when it starts!"
+msgstr "软件启动时将自动检测并自动运行！！"
+
+msgid "Verysync Official Server"
+msgstr "微力官方服务器"
+
+msgid "Customize Download URL or Upload Manually"
+msgstr "自定义下载链接或手动上传"
+
+msgid "Get Verysync Version"
+msgstr "获取版本"
+
+msgid "Get the downloadable version of the software from the official server."
+msgstr "从官网获取可下载软件的版本。"
+
+msgid "Please manually refresh the page about 30 seconds after getting the version."
+msgstr "获取版本后约30秒请手动刷新一次界面。"
+
+msgid "Download Executable Version"
+msgstr "下载执行文件版本"
+
+msgid "Customize Download URL"
+msgstr "自定义执行文件下载网址"
+
+msgid "The URL must start with http or https and contains the full file name!"
+msgstr "网址须以http或者https开始，包含完整文件名！！"
+
+msgid "Upload Manually"
+msgstr "手动上传文件"
+
+msgid "Click to the page for manually uploading files (luci-app-filetransfer required) or use other tools and upload the file to /tmp/upload/." 
+msgstr "点击可跳转至手动上传文件的界面（需安装luci-app-filetransfer）或使用其他工具上传至/tmp/upload。"
+
+msgid "After uploading files, start the software on this page and it will be installed automatically."
+msgstr "上传完文件后，在此页面启动软件，将会自动安装。"
+
+msgid "Reset Verysync"
+msgstr "重置微力"
+
+msgid "Sometimes the downloaded files are incorrect, you can delete them."
+msgstr "有时下载的文件有误，可以进行删除。"
+
+msgid "Delete files only after multiple startup failures. When the synchronization is successful, it must not be deleted!!"
+msgstr "建议只有在多次启动失败时才尝试删除或重置。同步成功后请勿删除或重置！！"
+
+msgid "More Options"
+msgstr "更多选项"
