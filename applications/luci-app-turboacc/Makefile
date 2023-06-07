@@ -38,8 +38,8 @@ config PACKAGE_$(PKG_NAME)_INCLUDE_OFFLOADING
 
 config PACKAGE_$(PKG_NAME)_INCLUDE_SHORTCUT_FE
 	bool "Include Shortcut-FE"
-	depends on PACKAGE_$(PKG_NAME)_INCLUDE_OFFLOADING=n
-	default n
+	#depends on PACKAGE_$(PKG_NAME)_INCLUDE_OFFLOADING=n
+	default y
 
 config PACKAGE_$(PKG_NAME)_INCLUDE_SHORTCUT_FE_CM
 	bool "Include Shortcut-FE CM"
