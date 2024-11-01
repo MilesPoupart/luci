@@ -11869,3 +11869,5 @@ msgstr "温度"
 msgid "Modem"
 msgstr "蜂窝网络"
 
+msgid "Control"
+msgstr "控制"
