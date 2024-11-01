@@ -1,5 +1,5 @@
 {
-	"admin/services/filebrowser": {
+	"admin/nas/filebrowser": {
 		"title": "FileBrowser",
 		"action": {
 			"order": 30,
