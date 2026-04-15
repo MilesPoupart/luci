@@ -1156,6 +1156,12 @@ fieldset > fieldset,
 	box-shadow: none;
 }
 
+/* Avoid clipping LuCI dropdown popups inside nested form sections. */
+fieldset,
+fieldset.cbi-section {
+	overflow-y: visible;
+}
+
 .cbi-section > h3:first-child,
 .panel-title {
     width: 100%;
@@ -1934,9 +1940,11 @@ form.inline + form.inline,
 	top: calc(100% + 4px);
 	left: 0;
 	z-index: 1200;
+	display: block;
 	min-width: 100%;
 	padding: 0.25rem 0;
 	max-height: 200px;
+	overflow-x: hidden;
 	overflow-y: auto;
 	background: var(--sectionbg_color);
 	border: var(--input_border);
@@ -1955,6 +1963,7 @@ form.inline + form.inline,
 	position: relative;
 	z-index: 1;
 	display: flex;
+	width: 100%;
 	background: var(--sectionbg_color);
 	min-height: 2.5rem;
 	padding: 0 0.85rem;
@@ -2002,6 +2011,21 @@ td.cbi-value-field.cbi-dropdown-open,
 	position: relative;
 	overflow: visible !important;
 	z-index: 100;
+}
+
+/* Keep opened dropdowns inside modal flow so menus don't get clipped or spill
+ * outside the dialog frame. */
+body.modal-overlay-active #modal_overlay .modal.cbi-modal .cbi-value-field.cbi-dropdown-open {
+	position: relative;
+	overflow: visible !important;
+	margin-bottom: min(18rem, 50vh);
+	z-index: 120;
+}
+
+body.modal-overlay-active #modal_overlay .modal.cbi-modal [data-tab-active="true"],
+body.modal-overlay-active #modal_overlay .modal.cbi-modal .cbi-section-node,
+body.modal-overlay-active #modal_overlay .modal.cbi-modal .cbi-section-node-tabbed {
+	overflow: visible !important;
 }
 
 .cbi-section,
@@ -2353,6 +2377,99 @@ td > .ifacebadge,
 	padding: .5em;
 }
 
+/* wireless overview */
+[data-page="admin-network-wireless"] #maincontent h3:first-of-type,
+.node-admin-network-wireless #maincontent h3:first-of-type {
+	font-size: 1.5em !important;
+	font-weight: 800;
+	padding: 0 12px 12px 12px;
+	line-height: 1.2;
+}
+
+[data-page="admin-network-wireless"] #cbi-wireless .cbi-section-table-row > .td[data-name="_stat"],
+.node-admin-network-wireless #cbi-wireless .cbi-section-table-row > .td[data-name="_stat"] {
+	text-align: left !important;
+}
+
+[data-page="admin-network-wireless"] #cbi-wireless > .table,
+.node-admin-network-wireless #cbi-wireless > .table {
+	table-layout: fixed;
+	width: 100%;
+}
+
+[data-page="admin-network-wireless"] #cbi-wireless .cbi-section-table-row > .td[data-name="_badge"],
+.node-admin-network-wireless #cbi-wireless .cbi-section-table-row > .td[data-name="_badge"] {
+	width: 17rem !important;
+	min-width: 17rem;
+	max-width: 17rem;
+}
+
+[data-page="admin-network-wireless"] #cbi-wireless .wireless-radio-badge,
+.node-admin-network-wireless #cbi-wireless .wireless-radio-badge {
+	display: flex;
+	justify-content: center;
+	align-items: center;
+}
+
+[data-page="admin-network-wireless"] #cbi-wireless .wireless-radio-badge > img,
+.node-admin-network-wireless #cbi-wireless .wireless-radio-badge > img {
+	width: 88px !important;
+	height: 88px !important;
+	min-width: 88px !important;
+}
+
+[data-page="admin-network-wireless"] #cbi-wireless .wireless-radio-status,
+.node-admin-network-wireless #cbi-wireless .wireless-radio-status,
+[data-page="admin-network-wireless"] #cbi-wireless .wireless-network-status,
+.node-admin-network-wireless #cbi-wireless .wireless-network-status {
+	text-align: left;
+	max-width: 100%;
+}
+
+[data-page="admin-network-wireless"] #cbi-wireless .wireless-radio-title,
+.node-admin-network-wireless #cbi-wireless .wireless-radio-title {
+	font-size: 1.08rem;
+	font-weight: 700;
+	line-height: 1.4;
+	color: var(--text_color);
+}
+
+[data-page="admin-network-wireless"] #cbi-wireless .wireless-radio-meta,
+.node-admin-network-wireless #cbi-wireless .wireless-radio-meta,
+[data-page="admin-network-wireless"] #cbi-wireless .wireless-network-status-row,
+.node-admin-network-wireless #cbi-wireless .wireless-network-status-row {
+	margin-top: .3rem;
+	line-height: 1.7;
+	color: var(--text_color);
+	text-align: left;
+}
+
+[data-page="admin-network-wireless"] #cbi-wireless .wireless-network-status-note,
+.node-admin-network-wireless #cbi-wireless .wireless-network-status-note {
+	margin-top: .4rem;
+}
+
+[data-page="admin-network-wireless"] #cbi-wireless .wireless-status-sep,
+.node-admin-network-wireless #cbi-wireless .wireless-status-sep {
+	display: inline-block;
+	padding: 0 .35rem;
+	color: var(--text_color);
+	opacity: .7;
+}
+
+[data-page="admin-network-wireless"] #cbi-wireless .cbi-section-table-row > .td.cbi-section-actions,
+.node-admin-network-wireless #cbi-wireless .cbi-section-table-row > .td.cbi-section-actions {
+	width: 18.5rem !important;
+	min-width: 18.5rem;
+	max-width: 18.5rem;
+}
+
+[data-page="admin-network-wireless"] #cbi-wireless .cbi-section-table-row > .td[data-name="_stat"],
+.node-admin-network-wireless #cbi-wireless .cbi-section-table-row > .td[data-name="_stat"] {
+	width: auto !important;
+}
+
+
 /* textarea */
 #content_syslog {
     padding: 5px;
@@ -2389,11 +2506,14 @@ td > .ifacebadge,
 #syslog {
     width: 100%;
     min-height: 15rem;
-    padding: 10px;
+    padding: 12px 14px;
     margin-bottom: 20px;
     border-radius: 0;
     background-color: var(--sectionbg_color);
     border: none;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    font-size: 13px !important;
+    line-height: 1.55 !important;
 }
 
 #syslog:focus {
@@ -3160,6 +3280,38 @@ input[name="nslookup"] {
 
 #wifi_assoclist_table > .tr > .td[data-title="RX Rate / TX Rate"] {
 	width: 23rem;
+}
+
+[data-page="admin-network-wireless"] #wifi_assoclist_table .ifacebadge,
+.node-admin-network-wireless #wifi_assoclist_table .ifacebadge {
+	padding: .22rem .5rem;
+	gap: .18rem;
+	border-radius: 8px;
+	align-items: center;
+	line-height: 1.25;
+}
+
+[data-page="admin-network-wireless"] #wifi_assoclist_table .ifacebadge > img,
+.node-admin-network-wireless #wifi_assoclist_table .ifacebadge > img {
+	width: 16px !important;
+	height: 16px !important;
+	min-width: 16px !important;
+	margin-right: .2rem !important;
+	align-self: center;
+}
+
+[data-page="admin-network-wireless"] #wifi_assoclist_table .ifacebadge > span,
+.node-admin-network-wireless #wifi_assoclist_table .ifacebadge > span {
+	display: inline-flex;
+	align-items: baseline;
+	flex-wrap: wrap;
+	gap: .15rem;
+}
+
+[data-page="admin-network-wireless"] #wifi_assoclist_table > .tr > .td,
+.node-admin-network-wireless #wifi_assoclist_table > .tr > .td {
+	padding-top: .45rem;
+	padding-bottom: .45rem;
 }
 
 /* firewall */

@@ -323,13 +323,19 @@
             var src = img.getAttribute('src') || '';
             var match = src.match(/\/icons\/([^/?#]+)\.png(?:[?#].*)?$/);
             var key = match ? match[1] : '';
+            var inAssocList = !!img.closest('#wifi_assoclist_table');
             var mapped = iconMap[key];
             var badge = img.closest('.ifacebadge') || img.closest('.center');
             var isDeviceIcon = (key === 'wifi' || key === 'wifi_disabled');
-            var size = isDeviceIcon ? '24px' : '18px';
+            var size = isDeviceIcon ? '64px' : '18px';
 
             if (!mapped || !badge) {
                 return;
+            }
+
+            if (inAssocList && isDeviceIcon) {
+                mapped = key;
+                size = '16px';
             }
 
             img.setAttribute('src', mediaPath + '/images/' + mapped + '.png');
@@ -342,7 +348,7 @@
             img.style.setProperty('height', size, 'important');
             img.style.setProperty('min-width', size, 'important');
             img.style.setProperty('padding', '0', 'important');
-            img.style.setProperty('margin', isDeviceIcon ? '0 .3rem 0 0' : '0 .25rem 0 0', 'important');
+            img.style.setProperty('margin', (inAssocList && isDeviceIcon) ? '0 .2rem 0 0' : (isDeviceIcon ? '0 .3rem 0 0' : '0 .25rem 0 0'), 'important');
             img.style.setProperty('vertical-align', 'middle', 'important');
             img.style.setProperty('object-fit', 'contain', 'important');
         });
