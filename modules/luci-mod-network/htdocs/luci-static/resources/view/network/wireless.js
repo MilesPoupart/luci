@@ -81,9 +81,13 @@ function getLegacyIwinfoProbeTargets() {
 	const targets = [];
 
 	for (const radio of uci.sections('wireless', 'wifi-device'))
-		pushUnique(targets, radio['.name']);
+		if (!isConfigWifiDeviceDisabled(radio['.name']))
+			pushUnique(targets, radio['.name']);
 
 	for (const iface of uci.sections('wireless', 'wifi-iface')) {
+		if (isConfigWifiIfaceDisabled(iface))
+			continue;
+
 		const device = iface.device;
 		const section = iface['.name'];
 		const configuredIfname = iface.ifname;
@@ -96,6 +100,13 @@ function getLegacyIwinfoProbeTargets() {
 	}
 
 	return targets;
+}
+
+function parseIwDevInfoTxPower(stdout) {
+	const match = String(stdout || '').match(/\btxpower\s+([0-9]+(?:\.[0-9]+)?)\s*dBm\b/i);
+	const value = match ? parseFloat(match[1]) : NaN;
+
+	return (!isNaN(value) && value > 0) ? value : null;
 }
 
 function buildIwinfoResolver(devices) {
@@ -115,6 +126,9 @@ function buildIwinfoResolver(devices) {
 	}
 
 	for (const iface of uci.sections('wireless', 'wifi-iface')) {
+		if (isConfigWifiIfaceDisabled(iface))
+			continue;
+
 		const device = iface.device;
 		const section = iface['.name'];
 		const configuredIfname = iface.ifname;
@@ -142,6 +156,10 @@ function buildIwinfoResolver(devices) {
 
 	for (const radio of uci.sections('wireless', 'wifi-device')) {
 		const name = radio['.name'];
+
+		if (isConfigWifiDeviceDisabled(name))
+			continue;
+
 		const target = radioTargets[name] || (deviceLookup[name] ? name : null);
 
 		registerTarget(target);
@@ -209,18 +227,35 @@ function loadIwinfoInfoMap(force) {
 				if (info != null)
 					nextMap[name] = info;
 
-			for (const alias in resolver.aliasMap) {
-				const target = resolver.aliasMap[alias];
+			const missingTxPowerTargets = queryTargets.filter((name) => {
+				const txpower = nextMap[name]?.txpower;
 
-				if (target && nextMap[target] != null)
-					nextMap[alias] = nextMap[target];
-			}
+				return (txpower == null || isNaN(txpower) || txpower <= 0);
+			});
 
-			if (Object.keys(nextMap).length > 0 || cachedIwinfoInfoMap == null)
-				cachedIwinfoInfoMap = nextMap;
+			return Promise.all(missingTxPowerTargets.map((name) =>
+				L.resolveDefault(fs.exec_direct('/usr/sbin/iw', [ 'dev', name, 'info' ]), '').then((stdout) => [ name, parseIwDevInfoTxPower(stdout) ])
+			)).then((fallbacks) => {
+				for (const [ name, txpower ] of fallbacks) {
+					if (txpower == null)
+						continue;
 
-			cachedIwinfoInfoPromise = null;
-			return cachedIwinfoInfoMap || nextMap;
+					nextMap[name] = Object.assign({}, nextMap[name] || {}, { txpower });
+				}
+
+				for (const alias in resolver.aliasMap) {
+					const target = resolver.aliasMap[alias];
+
+					if (target && nextMap[target] != null)
+						nextMap[alias] = nextMap[target];
+				}
+
+				if (Object.keys(nextMap).length > 0 || cachedIwinfoInfoMap == null)
+					cachedIwinfoInfoMap = nextMap;
+
+				cachedIwinfoInfoPromise = null;
+				return cachedIwinfoInfoMap || nextMap;
+			});
 		});
 	}).catch(() => {
 		cachedIwinfoInfoPromise = null;
@@ -250,8 +285,19 @@ function isQcaWifiHwtype(hwtype) {
 	return (hwtype == 'qcawifi' || hwtype == 'qcawificfg80211');
 }
 
+function isConfigWifiDeviceDisabled(deviceName) {
+	return (uci.get('wireless', deviceName, 'disabled') == '1');
+}
+
+function isConfigWifiIfaceDisabled(ifaceSection) {
+	const iface = L.isObject(ifaceSection) ? ifaceSection : uci.get('wireless', ifaceSection);
+
+	return (iface != null && iface['.type'] == 'wifi-iface' &&
+		(iface.disabled == '1' || isConfigWifiDeviceDisabled(iface.device)));
+}
+
 function isNetworkDisabled(radioNet) {
-	return (radioNet.get('disabled') == '1' || uci.get('wireless', radioNet.getWifiDeviceName(), 'disabled') == '1');
+	return (radioNet.get('disabled') == '1' || isConfigWifiDeviceDisabled(radioNet.getWifiDeviceName()));
 }
 
 function isRadioDisplayUp(radioDev, wifiNets) {
@@ -427,6 +473,15 @@ function getConfiguredTxPower(radioNet) {
 	return (!isNaN(cfgvalue) && cfgvalue > 0) ? cfgvalue : null;
 }
 
+function isUnsetChannelValue(channel) {
+	return channel == null || channel === '';
+}
+
+function shouldDisplayAutoChannel(hwtype, configChannel, runtimeChannel) {
+	return configChannel == 'auto' || runtimeChannel == 'auto' ||
+		((isQcaWifiHwtype(hwtype) || hwtype == 'mt_dbdc') && isUnsetChannelValue(configChannel));
+}
+
 function isPlausibleTxPowerValue(txpower, hwtype) {
 	if (txpower == null || isNaN(txpower) || txpower <= 0)
 		return false;
@@ -570,6 +625,10 @@ function getConfiguredBand(hwtype, hwmode, channel, bandval) {
 	return null;
 }
 
+function getBaseHTMode(htmode) {
+	return String(htmode || '').replace(/([+-])$/, '');
+}
+
 function getConfiguredWirelessMode(hwtype, hwmode, htmode) {
 	hwmode = String(hwmode || '');
 	htmode = String(htmode || '');
@@ -681,6 +740,10 @@ function getDisplayBitRate(radioNet) {
 		case 'HT20':
 		case 'EHT20': return 344.1;
 		case 'HT40':
+		case 'HT40+':
+		case 'HT40-':
+		case 'EHT40+':
+		case 'EHT40-':
 		case 'EHT40': return 688.2;
 		case 'HT80':
 		case 'EHT80': return 1441.2;
@@ -696,6 +759,10 @@ function getDisplayBitRate(radioNet) {
 		case 'HT20':
 		case 'HE20': return 286.8;
 		case 'HT40':
+		case 'HT40+':
+		case 'HT40-':
+		case 'HE40+':
+		case 'HE40-':
 		case 'HE40': return 573.5;
 		case 'HT80':
 		case 'HE80': return 1201.0;
@@ -709,6 +776,8 @@ function getDisplayBitRate(radioNet) {
 		case 'HT20':
 		case 'VHT20': return 173.3;
 		case 'HT40':
+		case 'HT40+':
+		case 'HT40-':
 		case 'VHT40': return 400.0;
 		case 'HT80':
 		case 'VHT80': return 866.7;
@@ -721,6 +790,8 @@ function getDisplayBitRate(radioNet) {
 	if (/^11ng/.test(hwmode) || /^11na/.test(hwmode)) {
 		switch (htmode) {
 		case 'HT20': return 144.4;
+		case 'HT40+':
+		case 'HT40-':
 		case 'HT40': return 300.0;
 		}
 	}
@@ -972,6 +1043,9 @@ function probeAssocListCandidates(candidates, probeFn) {
 }
 
 function getAssocListForNetwork(radioNet) {
+	if (isNetworkDisabled(radioNet))
+		return Promise.resolve([]);
+
 	const hwtype = uci.get('wireless', radioNet.getWifiDeviceName(), 'type');
 	const candidates = getAssocListCandidates(radioNet);
 	const resolvedIfname = candidates[0];
@@ -1359,7 +1433,8 @@ var CBIWifiFrequencyValue = form.Value.extend({
 		const bandval = uci.get('wireless', device_section, 'band');
 		const cfg_channel = uci.get('wireless', device_section, 'channel');
 		const chval = +cfg_channel;
-		const allow_auto = (hwtype == 'mt_dbdc' || cfg_channel == 'auto' || L.hasSystemFeature('hostapd', 'acs'));
+		const allow_auto = (hwtype == 'mt_dbdc' || isQcaWifiHwtype(hwtype) ||
+			cfg_channel == 'auto' || L.hasSystemFeature('hostapd', 'acs'));
 
 		return Promise.all([
 			network.getWifiDevice(device_section),
@@ -1385,6 +1460,7 @@ var CBIWifiFrequencyValue = form.Value.extend({
 			this.devinfo = devinfo;
 			this.devcfg = devcfg;
 			this.iwPhyMaxWidth = iwPhyName ? iwPhyWidthMap[iwPhyName] : null;
+			this.hwtype = hwtype;
 
 			this.channels = {
 				'2g': allow_auto ? [ 'auto', 'auto', { available: true } ] : [],
@@ -1402,11 +1478,16 @@ var CBIWifiFrequencyValue = form.Value.extend({
 				this.channels[band].push(
 					freq.channel,
 					'%d (%d Mhz)'.format(freq.channel, freq.mhz),
-					{ available: !(freq.restricted && freq.no_ir), no_outdoor: freq.no_outdoor }
+					{
+						available: !(freq.restricted && freq.no_ir),
+						no_outdoor: freq.no_outdoor,
+						ht40plus: !(L.toArray(freq.flags).includes('no_ht40+')),
+						ht40minus: !(L.toArray(freq.flags).includes('no_ht40-'))
+					}
 				);
 			}
 
-			if (cfg_channel == 'auto' || devcfg.channel == 'auto') {
+			if (shouldDisplayAutoChannel(hwtype, cfg_channel, devcfg.channel)) {
 				for (const band of Object.keys(this.channels)) {
 					if (!Array.isArray(this.channels[band]))
 						continue;
@@ -1456,13 +1537,21 @@ var CBIWifiFrequencyValue = form.Value.extend({
 			const hwmodelist = hwmode_values
 				.reduce((obj, value) => { obj[value] = true; return obj; }, {});
 			const htmodelist = htmode_values
-				.reduce((obj, value) => { obj[value] = true; return obj; }, {});
+				.reduce((obj, value) => {
+					obj[value] = true;
+					obj[getBaseHTMode(value)] = true;
+					return obj;
+				}, {});
 
+			const has_he_modes = !!(htmodelist.HE20 || htmodelist.HE40 || htmodelist.HE80 || htmodelist.HE160);
+			const has_eht_modes = !!(htmodelist.EHT20 || htmodelist.EHT40 || htmodelist.EHT80 || htmodelist.EHT160 || htmodelist.EHT320);
 			const has_5g_channels = this.channels['5g'].length > (allow_auto ? 3 : 0);
 			const has_ac = (hwmodelist.ac || ((hwmodelist.ax || hwmodelist.be || /^11ax|^11be/.test(hwval)) && has_5g_channels)) &&
 				(L.hasSystemFeature('hostapd', '11ac') || htmodelist.VHT20 || htmodelist.VHT40 || htmodelist.VHT80 || htmodelist.VHT160);
-			const has_ax = hwmodelist.ax && (L.hasSystemFeature('hostapd', '11ax') || htmodelist.HE20 || htmodelist.HE40 || htmodelist.HE80 || htmodelist.HE160);
-			const has_be = hwmodelist.be && (L.hasSystemFeature('hostapd', '11be') || htmodelist.EHT20 || htmodelist.EHT40 || htmodelist.EHT80 || htmodelist.EHT160 || htmodelist.EHT320);
+			const has_ax = (hwmodelist.ax || has_eht_modes) &&
+				(L.hasSystemFeature('hostapd', '11ax') || has_he_modes || has_eht_modes);
+			const has_be = (hwmodelist.be || has_eht_modes) &&
+				(L.hasSystemFeature('hostapd', '11be') || has_eht_modes);
 
 			if (isQcaWifiHwtype(hwtype)) {
 				const qca_has_be = has_be || /^11be/.test(hwval);
@@ -1626,15 +1715,60 @@ var CBIWifiFrequencyValue = form.Value.extend({
 		return false;
 	},
 
+	getChannelMeta: function(band, channel) {
+		const channels = this.channels?.[band];
+
+		if (!Array.isArray(channels) || channel == null || channel === '' || channel === 'auto')
+			return null;
+
+		for (let i = 0; i < channels.length; i += 3)
+			if (String(channels[i]) == String(channel))
+				return channels[i + 2] || null;
+
+		return null;
+	},
+
+	getDirectionalHTModeValue: function(value, channel) {
+		if (!/^(HT|HE|EHT)40(?:[+-])?$/.test(String(value || '')))
+			return value;
+
+		if (/[+-]$/.test(String(value)))
+			return value;
+
+		const channelNumber = +channel;
+
+		if (channelNumber > 0)
+			return '%s%s'.format(value, (channelNumber < 7) ? '+' : '-');
+
+		return value;
+	},
+
+	normalizeHTModeByChannel: function(value, band, channel) {
+		value = String(value || '');
+
+		if (this.hwtype != 'mac80211' || band != '2g' || !/^(HT|HE|EHT)40(?:[+-])?$/.test(value))
+			return value;
+
+		if (/[+-]$/.test(value))
+			return value;
+
+		const channelMeta = this.getChannelMeta(band, channel);
+
+		if (channelMeta?.ht40plus && !channelMeta?.ht40minus)
+			return value + '+';
+		if (channelMeta?.ht40minus && !channelMeta?.ht40plus)
+			return value + '-';
+
+		return this.getDirectionalHTModeValue(value, channel);
+	},
+
 	filterHTModesByChannel: function(vals, band, channel) {
 		if (!Array.isArray(vals))
 			return vals;
 
 		const ch = +channel;
+		const channelMeta = this.getChannelMeta(band, channel);
 		const restrictWide = (band == '5g' && !(ch > 0 && ch <= 100));
-
-		if (!restrictWide)
-			return vals;
 
 		const filtered = [];
 
@@ -1643,8 +1777,21 @@ var CBIWifiFrequencyValue = form.Value.extend({
 			const label = vals[i + 1];
 			const meta = Object.assign({}, vals[i + 2]);
 
-			if (/(160|320|80_80)/.test(String(value)))
+			if (restrictWide && /(160|320|80_80)/.test(String(value)))
 				meta.available = false;
+
+			if (this.hwtype == 'mac80211' && band == '2g' && channelMeta && /^(HT|HE|EHT)40$/.test(String(value))) {
+				const plusAvailable = !!(meta.available && channelMeta.ht40plus);
+				const minusAvailable = !!(meta.available && channelMeta.ht40minus);
+
+				filtered.push(
+					value + '+', _(minusAvailable ? 'Fore 40 MHz' : '40 MHz'),
+					Object.assign({}, meta, { available: plusAvailable }),
+					value + '-', _(plusAvailable ? 'Rear 40 MHz' : '40 MHz'),
+					Object.assign({}, meta, { available: minusAvailable })
+				);
+				continue;
+			}
 
 			filtered.push(value, label, meta);
 		}
@@ -1713,7 +1860,8 @@ var CBIWifiFrequencyValue = form.Value.extend({
 		const cfgvals = Array.isArray(cfgvalue) ? cfgvalue : null;
 		const cfg_htval = cfgvals ? cfgvals[0] : uci.get('wireless', config_section, 'htmode');
 		const cfg_hwval = uci.get('wireless', config_section, 'hwmode');
-		const cfg_chval = devcfg.channel || (cfgvals ? cfgvals[2] : uci.get('wireless', config_section, 'channel'));
+		const config_chval = cfgvals ? cfgvals[2] : uci.get('wireless', config_section, 'channel');
+		const cfg_chval = devcfg.channel || config_chval;
 		const cfg_bandval = devcfg.band || uci.get('wireless', config_section, 'band');
 		const htval = isQcaWifiHwtype(hwtype) ? (cfg_htval || devinfo.htmode) : (devinfo.htmode || cfg_htval);
 		const hwval = isQcaWifiHwtype(hwtype) ? (cfg_hwval || devinfo.hwmode) : (devinfo.hwmode || cfg_hwval);
@@ -1741,13 +1889,13 @@ var CBIWifiFrequencyValue = form.Value.extend({
 
 		if (isQcaWifiHwtype(hwtype))
 			modeval = getConfiguredWirelessMode(hwtype, hwval, htval);
-		else if (/EHT20|EHT40|EHT80|EHT160|EHT320/.test(htval))
+		else if (/EHT20|EHT40[+-]?|EHT80|EHT160|EHT320/.test(htval))
 			modeval = 'be';
-		else if (/HE20|HE40|HE80|HE160/.test(htval))
+		else if (/HE20|HE40[+-]?|HE80|HE160/.test(htval))
 			modeval = 'ax';
 		else if (/VHT20|VHT40|VHT80|VHT160/.test(htval))
 			modeval = 'ac';
-		else if (/HT20|HT40/.test(htval))
+		else if (/HT20|HT40[+-]?/.test(htval))
 			modeval = 'n';
 
 		if (!this.setSelectValue(mode, modeval) && !forceSelectValue(mode, modeval) && mode.options.length)
@@ -1780,7 +1928,7 @@ var CBIWifiFrequencyValue = form.Value.extend({
 		if (!this.setSelectValue(bwdt, htval) && bwdt.options.length)
 			bwdt.selectedIndex = Math.max(0, bwdt.options.length - 1);
 
-		const effective_chval = (cfg_chval == 'auto' || devcfg.channel == 'auto') ? 'auto' : chval;
+		const effective_chval = shouldDisplayAutoChannel(hwtype, config_chval, devcfg.channel) ? 'auto' : chval;
 
 		if (effective_chval == 'auto' && !Array.from(chan.options).some(o => o.value == 'auto'))
 			chan.insertBefore(E('option', { value: 'auto' }, [ 'auto' ]), chan.firstChild);
@@ -1789,6 +1937,13 @@ var CBIWifiFrequencyValue = form.Value.extend({
 			chan.selectedIndex = 0;
 
 		this.toggleWifiHTMode(elem);
+
+		const effective_htval = this.normalizeHTModeByChannel(htval, band.value, chan.value);
+
+		if (!this.setSelectValue(bwdt, effective_htval) &&
+		    !this.setSelectValue(bwdt, getBaseHTMode(htval)) &&
+		    bwdt.options.length)
+			bwdt.selectedIndex = Math.max(0, bwdt.options.length - 1);
 
 		this.checkWifiChannelRestriction(elem);
 
@@ -1866,17 +2021,22 @@ var CBIWifiFrequencyValue = form.Value.extend({
 	},
 
 	write: function(section_id, value) {
+		const config_name = this.uciconfig ?? this.section.uciconfig ?? this.map.config;
 		const config_section = this.getDeviceSection(section_id);
-		const hwtype = uci.get('wireless', config_section, 'type');
+		const data = this.map.data ?? uci;
+		const getValue = (option) => data.get(config_name, config_section, option);
+		const setValue = (option, formvalue) => data.set(config_name, config_section, option, formvalue);
+		const unsetValue = (option) => data.unset(config_name, config_section, option);
+		const hwtype = getValue('type');
 		const mode = value[0];
 		const htmode = value[1];
 		const band = value[2];
 		const channel = value[3];
 
-		uci.set('wireless', config_section, 'htmode', htmode || null);
+		setValue('htmode', htmode || null);
 
 		if (isQcaWifiHwtype(hwtype)) {
-			let hwmode = uci.get('wireless', config_section, 'hwmode');
+			let hwmode = getValue('hwmode');
 
 			if (hwtype == 'qcawifi') {
 				if (mode == 'ac')
@@ -1901,20 +2061,20 @@ var CBIWifiFrequencyValue = form.Value.extend({
 				}
 			}
 
-			uci.set('wireless', config_section, 'hwmode', hwmode);
-			uci.unset('wireless', config_section, 'band');
+			setValue('hwmode', hwmode);
+			unsetValue('band');
 		}
 		else if (this.useBandOption) {
-			uci.set('wireless', config_section, 'band', band);
+			setValue('band', band);
 
 			if (hwtype == 'mac80211')
-				uci.unset('wireless', config_section, 'hwmode');
+				unsetValue('hwmode');
 		}
 		else {
-			uci.set('wireless', config_section, 'hwmode', (band == '2g') ? '11g' : '11a');
+			setValue('hwmode', (band == '2g') ? '11g' : '11a');
 		}
 
-		uci.set('wireless', config_section, 'channel', channel);
+		setValue('channel', channel);
 	}
 });
 
@@ -1927,6 +2087,15 @@ var CBIWifiTxPowerValue = form.ListValue.extend({
 	}),
 
 	load: function(section_id) {
+		const device_section = this.getDeviceSection ? this.getDeviceSection(section_id) : section_id;
+
+		if (isConfigWifiDeviceDisabled(device_section)) {
+			this.powerval = this.wifiNetwork ? getDisplayTxPower(this.wifiNetwork) : null;
+			this.poweroff = this.wifiNetwork ? this.wifiNetwork.getTXPowerOffset() : null;
+			this.value('', _('driver default'));
+			return form.ListValue.prototype.load.apply(this, [section_id]);
+		}
+
 		return this.callTxPowerList(section_id).then(L.bind(function(pwrlist) {
 			this.powerval = this.wifiNetwork ? getDisplayTxPower(this.wifiNetwork) : null;
 			this.poweroff = this.wifiNetwork ? this.wifiNetwork.getTXPowerOffset() : null;
@@ -1964,6 +2133,11 @@ var CBIWifiCountryValue = form.Value.extend({
 	}),
 
 	load: function(section_id) {
+		const device_section = this.getDeviceSection ? this.getDeviceSection(section_id) : section_id;
+
+		if (isConfigWifiDeviceDisabled(device_section))
+			return form.Value.prototype.load.apply(this, [section_id]);
+
 		return this.callCountryList(section_id).then(L.bind(function(countrylist) {
 			if (Array.isArray(countrylist) && countrylist.length > 0) {
 				this.value('', _('driver default'));
@@ -2236,6 +2410,27 @@ return view.extend({
 				return radioNet;
 
 			return null;
+		};
+
+		s.handleModalSave = function(modalMap, ev) {
+			const mapNode = this.getActiveModalMap();
+			let activeMap = dom.findClassInstance(mapNode);
+			let saveTasks = activeMap.save(null, true);
+
+			while (activeMap.parent) {
+				activeMap = activeMap.parent;
+				saveTasks = saveTasks
+					.then(L.bind(activeMap.load, activeMap))
+					.then(L.bind(activeMap.reset, activeMap));
+			}
+
+			return saveTasks
+				.then(L.bind(this.handleModalCancel, this, modalMap, ev, true))
+				.then(L.bind(ui.changes.init, ui.changes))
+				.catch((e) => {
+					if (e?.message)
+						ui.addNotification(_('Save error'), E('p', e.message), 'error');
+				});
 		};
 
 		s.renderRowActions = function(section_id) {
