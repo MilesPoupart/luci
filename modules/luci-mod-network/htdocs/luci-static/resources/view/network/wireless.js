@@ -4393,7 +4393,7 @@ return view.extend({
 					const w = (bss.ht_operation.secondary_channel_offset == 'no secondary') ? 20 : 40;
 					uci.set('wireless', radioDev.getName(), 'htmode', 'HT'+w);
 				}
-				else {
+				else if (hwtype != 'mt_dbdc') {
 					uci.unset('wireless', radioDev.getName(), 'htmode');
 				}
 
