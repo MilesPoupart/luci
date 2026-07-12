@@ -4449,6 +4449,14 @@ return view.extend({
 				}
 
 				return network.addNetwork(nameval, { proto: 'dhcp' }).then(function(net) {
+					if (hwtype == 'mt_dbdc') {
+						const radioName = radioDev.getName();
+						const staDevice = (radioName == 'rax') ? 'apclix0' :
+							(radioName == 'rai') ? 'apclii0' : 'apcli0';
+
+						uci.set('network', nameval, 'device', staDevice);
+					}
+
 					firewall.deleteNetwork(net.getName());
 
 					const zonePromise = zoneval ?
@@ -4481,6 +4489,13 @@ return view.extend({
 				const s = uci.get('network', name);
 				if (s != null && s['.type'] != 'interface')
 					return true;
+
+				for (const wifi of uci.sections('wireless', 'wifi-iface')) {
+					const networks = String(wifi.network || '').trim().split(/\s+/);
+
+					if (networks.indexOf(name) != -1)
+						return true;
+				}
 
 				const net = (s != null) ? network.instantiateNetwork(name) : null;
 				return (net != null && !net.isEmpty());
