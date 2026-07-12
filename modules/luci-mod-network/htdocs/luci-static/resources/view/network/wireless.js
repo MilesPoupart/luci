@@ -4393,8 +4393,8 @@ return view.extend({
 					const w = (bss.ht_operation.secondary_channel_offset == 'no secondary') ? 20 : 40;
 					uci.set('wireless', radioDev.getName(), 'htmode', 'HT'+w);
 				}
-				else {
-					uci.remove('wireless', radioDev.getName(), 'htmode');
+				else if (hwtype != 'mt_dbdc') {
+					uci.unset('wireless', radioDev.getName(), 'htmode');
 				}
 
 				uci.set('wireless', radioDev.getName(), 'channel', bss.channel);
@@ -4525,7 +4525,7 @@ return view.extend({
 
 			if (bss.ssid != null) {
 				bssid = s2.option(form.Flag, 'bssid', _('Lock to BSSID'), _('Instead of joining any network with a matching SSID, only connect to the BSSID <code>%h</code>.').format(bss.bssid));
-				bssid.default = '0';
+				bssid.default = (uci.get('wireless', radioDev.getName(), 'type') == 'mt_dbdc') ? '1' : '0';
 			}
 
 			zone = s2.option(widgets.ZoneSelect, 'zone', _('Create / Assign firewall-zone'), _('Choose the firewall zone you want to assign to this interface. Select <em>unspecified</em> to remove the interface from the associated zone or fill out the <em>custom</em> field to define a new zone and attach the interface to it.'));
