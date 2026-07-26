@@ -1218,7 +1218,7 @@ function getDisplaySignalPercent(radioNet, hwtype, is_assoc, disabled) {
 
 function getDisplaySignalValue(radioNet, hwtype, is_assoc) {
 	if ((hwtype == 'mt_dbdc' || (isQcaWifiHwtype(hwtype) && radioNet.getMode() == 'ap')) && is_assoc)
-		return getDisplayTxPower(radioNet);
+		return getDisplayTxPower(radioNet) ?? 30;
 
 	return radioNet.getSignal();
 }
