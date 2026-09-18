@@ -13700,3 +13700,9 @@ msgstr ""
 
 msgid "Online Hosts"
 msgstr ""
+
+msgid "Connection count"
+msgstr ""
+
+msgid "Wireless scan failed: %s"
+msgstr ""
