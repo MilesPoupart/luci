@@ -1714,7 +1714,7 @@ msgid "Path"
 msgstr ""
 
 #: htdocs/luci-static/resources/view/homeproxy/node.js:911
-msgid "Peer public key"
+msgid "Peer pubkic key"
 msgstr ""
 
 #: htdocs/luci-static/resources/view/homeproxy/client.js:329
@@ -1748,7 +1748,7 @@ msgid "Port"
 msgstr ""
 
 #: htdocs/luci-static/resources/view/homeproxy/client.js:276
-msgid "Port %s already exists!"
+msgid "Port %s alrealy exists!"
 msgstr ""
 
 #: htdocs/luci-static/resources/view/homeproxy/client.js:582
