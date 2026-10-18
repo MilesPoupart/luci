@@ -678,7 +678,8 @@ function getDisplayTxPower(radioNet) {
 		if (isPlausibleTxPowerValue(info != null ? info.txpower : null, hwtype))
 			return info.txpower;
 
-	if (isPlausibleTxPowerValue(cfgvalue, hwtype))
+	// mt_dbdc configures power as a percentage, not dBm.
+	if (hwtype != 'mt_dbdc' && isPlausibleTxPowerValue(cfgvalue, hwtype))
 		return cfgvalue;
 
 	return null;
@@ -1404,7 +1405,9 @@ function getDisplaySignalPercent(radioNet, hwtype, is_assoc, disabled) {
 }
 
 function getDisplaySignalValue(radioNet, hwtype, is_assoc) {
-	if ((hwtype == 'mt_dbdc' || (isQcaWifiHwtype(hwtype) && radioNet.getMode() == 'ap')) && is_assoc)
+	if (hwtype == 'mt_dbdc' && radioNet.getMode() == 'ap')
+		return is_assoc ? getDisplayTxPower(radioNet) : null;
+	if (isQcaWifiHwtype(hwtype) && radioNet.getMode() == 'ap' && is_assoc)
 		return getDisplayTxPower(radioNet) ?? 30;
 
 	return radioNet.getSignal();
@@ -1437,7 +1440,7 @@ function renderStatusRow(pairs, className) {
 	return added ? row : null;
 }
 
-function render_signal_badge(signalPercent, signalValue, noiseValue, wrap, mode) {
+function render_signal_badge(signalPercent, signalValue, noiseValue, wrap, mode, txpower = false) {
 	let icon = L.resource('icons/signal-075-100.svg'), title, value;
 
 	switch(true) {
@@ -1459,13 +1462,13 @@ function render_signal_badge(signalPercent, signalValue, noiseValue, wrap, mode)
 		}
 		else {
 			value = `${signalValue}\xa0${_('dBm')}`;
-			title = `${_('Signal')} ${signalValue} ${_('dBm')}`;
+			title = `${txpower ? _('Tx-Power') : _('Signal')} ${signalValue} ${_('dBm')}`;
 		}
 	}
 	else if (signalPercent > -1) {
 		switch (mode) {
 			case 'ap':
-				title = _('No client associated');
+				title = txpower ? _('Tx-Power') : _('No client associated');
 				break;
 
 			case 'sta':
@@ -1516,7 +1519,8 @@ function render_network_badge(radioNet) {
 	return render_signal_badge(
 		getDisplaySignalPercent(radioNet, hwtype, is_assoc, disabled),
 		getDisplaySignalValue(radioNet, hwtype, is_assoc),
-		getDisplayNoiseValue(radioNet, hwtype, is_assoc), false, radioNet.getMode());
+		getDisplayNoiseValue(radioNet, hwtype, is_assoc), false, radioNet.getMode(),
+		hwtype == 'mt_dbdc' && radioNet.getMode() == 'ap');
 }
 
 function render_radio_status(radioDev, wifiNets) {
@@ -1591,7 +1595,8 @@ function render_modal_status(node, radioNet) {
 
 	dom.content(node.firstElementChild, render_signal_badge(
 		getDisplaySignalPercent(radioNet, hwtype, is_assoc, disabled),
-		getDisplaySignalValue(radioNet, hwtype, is_assoc), noise, true, radioNet.getMode()));
+		getDisplaySignalValue(radioNet, hwtype, is_assoc), noise, true, radioNet.getMode(),
+		hwtype == 'mt_dbdc' && radioNet.getMode() == 'ap'));
 
 	L.itemlist(node.lastElementChild, [
 		_('Mode'),       mode,
@@ -1755,7 +1760,8 @@ var CBIWifiFrequencyValue = form.Value.extend({
 			configOnly ? {} : this.callDeviceInfo(device_section),
 			configOnly ? {} : L.resolveDefault(this.callWirelessStatus(), {}),
 			!configOnly && isQcaWifiHwtype(hwtype) ? L.resolveDefault(fs.exec_direct('/usr/sbin/iw', [ 'dev' ]), '') : '',
-			!configOnly && isQcaWifiHwtype(hwtype) ? L.resolveDefault(fs.exec_direct('/usr/sbin/iw', [ 'phy' ]), '') : ''
+			!configOnly && isQcaWifiHwtype(hwtype) ? L.resolveDefault(fs.exec_direct('/usr/sbin/iw', [ 'phy' ]), '') : '',
+			isQcaWifiHwtype(hwtype) ? L.resolveDefault(fs.read('/sys/class/net/' + (uci.get('wireless', device_section, 'phy') || device_section) + '/device/uevent'), '') : ''
 		]).then(L.bind(function(data) {
 			const wifidevs = data[0];
 			const freqlist = data[1];
@@ -1775,6 +1781,7 @@ var CBIWifiFrequencyValue = form.Value.extend({
 			this.devinfo = devinfo;
 			this.devcfg = devcfg;
 			this.iwPhyMaxWidth = iwPhyName ? iwPhyWidthMap[iwPhyName] : null;
+			this.qca8074v1 = /^OF_COMPATIBLE_[0-9]+=qcom,cnss-qca8074$/m.test(data[6]);
 			this.hwtype = hwtype;
 
 			this.channels = {
@@ -1889,7 +1896,7 @@ var CBIWifiFrequencyValue = form.Value.extend({
 				const qca_has_ac = qca_has_ax || has_ac || /^11ac/.test(hwval);
 				const qca_has_n = qca_has_ac || hwmodelist.n || /^11n/.test(hwval);
 				const qca_has_htinfo = (Object.keys(htmodelist).length > 0);
-				const qca_max_width = this.iwPhyMaxWidth || Infinity;
+				const qca_max_width = this.qca8074v1 ? 80 : (this.iwPhyMaxWidth || Infinity);
 				const qca_ht20 = !!(!qca_has_htinfo || htmodelist.HT20 || htmodelist.VHT20 || htmodelist.HE20 || htmodelist.EHT20 || /^HT20$/.test(htval));
 				const qca_ht40 = !!(!qca_has_htinfo || htmodelist.HT40 || htmodelist.VHT40 || htmodelist.HE40 || htmodelist.EHT40 || /^HT40$/.test(htval));
 				const qca_ht80 = (!!(!qca_has_htinfo || htmodelist.VHT80 || htmodelist.HE80 || htmodelist.EHT80 || /^HT80$/.test(htval)) && qca_max_width >= 80);
@@ -1915,7 +1922,7 @@ var CBIWifiFrequencyValue = form.Value.extend({
 						'HT40', '40 MHz', { available: qca_ht40 },
 						'HT80', '80 MHz', { available: qca_ht80 },
 						'HT160', '160 MHz', { available: qca_ht160 },
-						'HT80_80', '80+80 MHz', { available: /^HT80_80$/.test(htval) }
+						'HT80_80', '80+80 MHz', { available: !this.qca8074v1 && /^HT80_80$/.test(htval) }
 					],
 					'ax': [
 						'HT20', '20 MHz', { available: qca_ht20 },
